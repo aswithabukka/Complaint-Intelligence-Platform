@@ -2,6 +2,15 @@
 
 An AI-powered complaint management system that automatically processes, analyzes, and triages customer complaints using OCR and Large Language Models. Transform complaint handling from hours to minutes with intelligent automation.
 
+## 📁 Tech Stack
+
+**Backend**: FastAPI, SQLAlchemy, Celery, PostgreSQL, Redis, OpenAI API, Tesseract OCR
+**Frontend**: React 19, Vite 7, Nginx
+**Infrastructure**: Docker, Docker Compose, Alembic
+
+Full technical documentation: See [TECHNICAL.md](./TECHNICAL.md)
+
+
 ## 🎯 Business Value
 
 ### Key Metrics Improvement
@@ -200,13 +209,6 @@ Enhanced detection grouping by **Category + Team** combination:
 
 **Need detailed logs**: `docker-compose logs -f api worker`
 
-## 📁 Tech Stack
-
-**Backend**: FastAPI, SQLAlchemy, Celery, PostgreSQL, Redis, OpenAI API, Tesseract OCR
-**Frontend**: React 19, Vite 7, Nginx
-**Infrastructure**: Docker, Docker Compose, Alembic
-
-Full technical documentation: See [TECHNICAL.md](./TECHNICAL.md)
 
 ## 🤝 Contributing
 
