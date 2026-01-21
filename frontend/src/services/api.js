@@ -25,6 +25,11 @@ export const createComplaint = async (data) => {
   return response.data;
 };
 
+export const updateComplaint = async (id, data) => {
+  const response = await api.put(`/complaints/${id}`, data);
+  return response.data;
+};
+
 export const deleteComplaint = async (id) => {
   const response = await api.delete(`/complaints/${id}`);
   return response.data;

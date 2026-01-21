@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import Dashboard from './components/Dashboard';
 import ComplaintList from './pages/ComplaintList';
 import CreateComplaint from './pages/CreateComplaint';
 import ComplaintDetail from './pages/ComplaintDetail';
@@ -23,7 +24,8 @@ function App() {
         <main className="main">
           <div className="container">
             <Routes>
-              <Route path="/" element={<ComplaintList />} />
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/complaints" element={<ComplaintList />} />
               <Route path="/create" element={<CreateComplaint />} />
               <Route path="/complaints/:id" element={<ComplaintDetail />} />
             </Routes>

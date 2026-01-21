@@ -1,13 +1,15 @@
+import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useComplaintPolling } from '../hooks/useComplaintPolling';
-import { downloadDocument, regenerateSummary } from '../services/api';
+import { downloadDocument, regenerateSummary, updateComplaint } from '../services/api';
 import SummaryCard from '../components/SummaryCard';
 import './ComplaintDetail.css';
 
 function ComplaintDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { complaint, loading, error } = useComplaintPolling(id);
+  const { complaint, loading, error, refetch } = useComplaintPolling(id);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const handleDownload = async (documentId, filename) => {
     try {
@@ -32,6 +34,109 @@ function ComplaintDetail() {
     } catch (err) {
       alert('Failed to regenerate summary: ' + err.message);
     }
+  };
+
+  const handleStatusChange = async (newStatus) => {
+    if (newStatus === complaint.status) return;
+
+    setIsUpdatingStatus(true);
+    try {
+      await updateComplaint(id, { status: newStatus });
+      // Trigger refetch to get updated data
+      if (refetch) {
+        await refetch();
+      }
+      alert(`Status updated to ${newStatus.replace('_', ' ').toUpperCase()}`);
+    } catch (err) {
+      alert('Failed to update status: ' + err.message);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleSendCustomerUpdate = () => {
+    if (!complaint.overall_summary) {
+      alert('No summary available to generate customer update');
+      return;
+    }
+
+    let summary = null;
+    try {
+      summary = JSON.parse(complaint.overall_summary);
+    } catch (e) {
+      alert('Unable to parse summary for customer update');
+      return;
+    }
+
+    const subject = `Update on Your Complaint: ${complaint.title}`;
+    const body = `Dear Valued Customer,
+
+Thank you for bringing this matter to our attention. We wanted to provide you with an update on your complaint.
+
+Complaint Reference: ${complaint.title}
+Status: ${complaint.status.replace('_', ' ').toUpperCase()}
+Category: ${summary.category || 'N/A'}
+Assigned Team: ${summary.responsible_team || 'Unassigned'}
+
+Summary:
+${summary.executive_summary || 'We are actively reviewing your complaint.'}
+
+${summary.recommended_actions && summary.recommended_actions.length > 0 ? `Next Steps:
+${summary.recommended_actions.map((action, i) => `${i + 1}. ${action}`).join('\n')}` : ''}
+
+We appreciate your patience and will continue to keep you informed of any developments.
+
+If you have any questions, please don't hesitate to reach out.
+
+Best regards,
+Customer Support Team`;
+
+    const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailtoLink;
+  };
+
+  const handleCreateJiraTicket = () => {
+    if (!complaint.overall_summary) {
+      alert('No summary available to generate Jira ticket');
+      return;
+    }
+
+    let summary = null;
+    try {
+      summary = JSON.parse(complaint.overall_summary);
+    } catch (e) {
+      alert('Unable to parse summary for Jira ticket');
+      return;
+    }
+
+    const jiraSummary = `[${summary.severity?.toUpperCase() || 'MEDIUM'}] ${complaint.title}`;
+    const jiraDescription = `*Complaint ID:* ${complaint.id}
+*Category:* ${summary.category || 'N/A'}
+*Severity:* ${summary.severity?.toUpperCase() || 'MEDIUM'}
+*Sentiment:* ${summary.sentiment?.toUpperCase() || 'NEUTRAL'}
+*Assigned Team:* ${summary.responsible_team || 'Unassigned'}
+
+h2. Executive Summary
+${summary.executive_summary || 'No summary available'}
+
+${summary.core_issues && summary.core_issues.length > 0 ? `h2. Core Issues
+${summary.core_issues.map((issue, i) => `* ${issue}`).join('\n')}` : ''}
+
+${summary.recommended_actions && summary.recommended_actions.length > 0 ? `h2. Recommended Actions
+${summary.recommended_actions.map((action, i) => `# ${action}`).join('\n')}` : ''}
+
+${summary.timeline && summary.timeline.length > 0 ? `h2. Timeline
+${summary.timeline.map((event, i) => `* ${event}`).join('\n')}` : ''}
+
+*Created:* ${new Date(complaint.created_at).toLocaleString()}
+*Documents:* ${complaint.documents?.length || 0}`;
+
+    // Copy to clipboard
+    navigator.clipboard.writeText(`Summary: ${jiraSummary}\n\nDescription:\n${jiraDescription}`).then(() => {
+      alert('Jira ticket details copied to clipboard!\n\nSummary: ' + jiraSummary);
+    }).catch(() => {
+      alert('Failed to copy to clipboard. Here are the details:\n\nSummary: ' + jiraSummary + '\n\nDescription:\n' + jiraDescription);
+    });
   };
 
   const getStatusBadge = (status) => {
@@ -134,7 +239,22 @@ function ComplaintDetail() {
           </div>
           <div className="info-item">
             <strong>Status:</strong>
-            {getStatusBadge(complaint.status)}
+            <div className="status-control">
+              {getStatusBadge(complaint.status)}
+              {isActionable && (
+                <select
+                  value={complaint.status}
+                  onChange={(e) => handleStatusChange(e.target.value)}
+                  disabled={isUpdatingStatus}
+                  className="status-dropdown"
+                >
+                  <option value="pending_action">Pending Action</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="completed">Completed</option>
+                </select>
+              )}
+            </div>
           </div>
           {complaint.description && (
             <div className="info-item description">
@@ -145,11 +265,31 @@ function ComplaintDetail() {
         </div>
 
         {complaint.overall_summary && (
-          <SummaryCard
-            summary={complaint.overall_summary}
-            onRegenerate={() => handleRegenerateSummary()}
-            isProcessing={isProcessing}
-          />
+          <>
+            <SummaryCard
+              summary={complaint.overall_summary}
+              onRegenerate={() => handleRegenerateSummary()}
+              isProcessing={isProcessing}
+            />
+
+            {/* Action Buttons */}
+            <div className="action-buttons">
+              <button
+                onClick={handleSendCustomerUpdate}
+                className="btn btn-primary action-btn"
+                disabled={isProcessing}
+              >
+                📧 Send Customer Update
+              </button>
+              <button
+                onClick={handleCreateJiraTicket}
+                className="btn btn-secondary action-btn"
+                disabled={isProcessing}
+              >
+                🎫 Create Jira Ticket
+              </button>
+            </div>
+          </>
         )}
 
         <div className="detail-section">

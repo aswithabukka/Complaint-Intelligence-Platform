@@ -55,10 +55,30 @@ Respond with ONLY a valid JSON object (no markdown code blocks, no additional te
   "severity": "string (either 'low', 'medium', 'high', or 'critical')",
   "responsible_team": "string (e.g., 'Billing Department', 'Customer Service', 'Technical Support', 'Legal', 'HR', etc.)",
   "executive_summary": "string (2-3 sentences capturing the essence)",
-  "key_facts": ["array", "of", "strings", "with", "most", "important", "facts"],
-  "timeline": ["array", "of", "strings", "in", "chronological", "order"],
-  "core_issues": ["array", "of", "strings", "listing", "primary", "complaints"],
+  "key_facts": [
+    {{
+      "fact": "string describing the fact",
+      "source": "document filename where this was found",
+      "context": "brief excerpt or context from the source document"
+    }}
+  ],
+  "timeline": [
+    {{
+      "event": "string describing the event",
+      "source": "document filename",
+      "context": "brief excerpt showing this timeline item"
+    }}
+  ],
+  "core_issues": [
+    {{
+      "issue": "string describing the issue",
+      "source": "document filename",
+      "context": "brief excerpt supporting this issue"
+    }}
+  ],
   "parties_involved": ["array", "of", "strings", "listing", "parties", "and", "their", "roles"],
   "evidence": ["array", "of", "strings", "describing", "supporting", "documentation"],
   "recommended_actions": ["array", "of", "strings", "with", "suggested", "next", "steps"]
-}}"""
+}}
+
+IMPORTANT: For key_facts, timeline, and core_issues, include the source document filename and a brief context/excerpt (1-2 sentences) that supports each item. This helps verify the information."""

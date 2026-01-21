@@ -137,9 +137,30 @@ function SummaryCard({ summary, onRegenerate, isProcessing }) {
             {expandedSections.key_facts && (
               <div className="section-content">
                 <ul>
-                  {parsedSummary.key_facts.map((fact, idx) => (
-                    <li key={idx}><Markdown>{fact}</Markdown></li>
-                  ))}
+                  {parsedSummary.key_facts.map((fact, idx) => {
+                    // Handle both old format (string) and new format (object with source)
+                    if (typeof fact === 'string') {
+                      return <li key={idx}><Markdown>{fact}</Markdown></li>;
+                    }
+                    return (
+                      <li key={idx} className="fact-with-source">
+                        <div className="fact-text">
+                          <Markdown>{fact.fact}</Markdown>
+                        </div>
+                        {fact.source && (
+                          <div className="source-reference">
+                            <span className="source-icon">📄</span>
+                            <div className="source-details">
+                              <div className="source-filename">{fact.source}</div>
+                              {fact.context && (
+                                <div className="source-context">"{fact.context}"</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
@@ -159,9 +180,30 @@ function SummaryCard({ summary, onRegenerate, isProcessing }) {
             {expandedSections.timeline && (
               <div className="section-content">
                 <ul className="timeline-list">
-                  {parsedSummary.timeline.map((event, idx) => (
-                    <li key={idx}><Markdown>{event}</Markdown></li>
-                  ))}
+                  {parsedSummary.timeline.map((event, idx) => {
+                    // Handle both old format (string) and new format (object with source)
+                    if (typeof event === 'string') {
+                      return <li key={idx}><Markdown>{event}</Markdown></li>;
+                    }
+                    return (
+                      <li key={idx} className="fact-with-source">
+                        <div className="fact-text">
+                          <Markdown>{event.event}</Markdown>
+                        </div>
+                        {event.source && (
+                          <div className="source-reference">
+                            <span className="source-icon">📄</span>
+                            <div className="source-details">
+                              <div className="source-filename">{event.source}</div>
+                              {event.context && (
+                                <div className="source-context">"{event.context}"</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
@@ -181,9 +223,30 @@ function SummaryCard({ summary, onRegenerate, isProcessing }) {
             {expandedSections.core_issues && (
               <div className="section-content">
                 <ul>
-                  {parsedSummary.core_issues.map((issue, idx) => (
-                    <li key={idx}><Markdown>{issue}</Markdown></li>
-                  ))}
+                  {parsedSummary.core_issues.map((issue, idx) => {
+                    // Handle both old format (string) and new format (object with source)
+                    if (typeof issue === 'string') {
+                      return <li key={idx}><Markdown>{issue}</Markdown></li>;
+                    }
+                    return (
+                      <li key={idx} className="fact-with-source">
+                        <div className="fact-text">
+                          <Markdown>{issue.issue}</Markdown>
+                        </div>
+                        {issue.source && (
+                          <div className="source-reference">
+                            <span className="source-icon">📄</span>
+                            <div className="source-details">
+                              <div className="source-filename">{issue.source}</div>
+                              {issue.context && (
+                                <div className="source-context">"{issue.context}"</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}

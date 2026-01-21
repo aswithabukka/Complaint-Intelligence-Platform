@@ -24,9 +24,18 @@ a:hover {
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
+  min-height: 100vh;
+  background-color: #ffffff;
+}
+
+body.dark-mode {
+  background-color: #111827;
+  color: #f9fafb;
+}
+
+#root {
+  width: 100%;
   min-height: 100vh;
 }
 

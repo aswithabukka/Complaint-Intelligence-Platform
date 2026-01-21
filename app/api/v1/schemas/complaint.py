@@ -19,6 +19,7 @@ class ComplaintUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     external_ref: Optional[str] = Field(None, max_length=100)
+    status: Optional[ComplaintStatus] = None
 
 
 class ComplaintInDB(ComplaintBase):
