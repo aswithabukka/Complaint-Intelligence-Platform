@@ -150,81 +150,221 @@ function Dashboard() {
   };
 
   const calculateUrgentComplaints = (items) => {
-    // Get complaints with high or critical severity that are not resolved
-    const urgent = items
-      .filter(complaint => {
-        if (['resolved', 'completed'].includes(complaint.status)) return false;
+    // Multi-criteria urgency scoring system
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
+    const scored = items
+      .filter(complaint => !['resolved', 'completed'].includes(complaint.status))
+      .map(complaint => {
+        let urgencyScore = 0;
+        let summary = null;
+
+        // Try to parse summary
         if (complaint.overall_summary) {
           try {
-            const summary = JSON.parse(complaint.overall_summary);
-            return ['high', 'critical'].includes(summary.severity);
+            summary = JSON.parse(complaint.overall_summary);
           } catch (e) {
-            return false;
+            // Ignore parse errors
           }
         }
-        return false;
+
+        // Score by severity (AI-determined)
+        if (summary) {
+          if (summary.severity === 'critical') urgencyScore += 100;
+          else if (summary.severity === 'high') urgencyScore += 50;
+          else if (summary.severity === 'medium') urgencyScore += 20;
+
+          // Score by sentiment
+          if (summary.sentiment === 'critical') urgencyScore += 30;
+          else if (summary.sentiment === 'negative') urgencyScore += 10;
+        }
+
+        // Score by status - pending_action needs immediate attention
+        if (complaint.status === 'pending_action') urgencyScore += 40;
+        else if (complaint.status === 'pending') urgencyScore += 20;
+
+        // Score by age - old pending complaints are urgent
+        const ageInDays = (now - new Date(complaint.created_at)) / (1000 * 60 * 60 * 24);
+        if (complaint.status === 'pending' && ageInDays > 1) {
+          urgencyScore += Math.min(ageInDays * 15, 60); // Up to 60 points for old pending
+        }
+
+        // Unprocessed complaints older than 24 hours are urgent
+        if (!summary && new Date(complaint.created_at) < oneDayAgo) {
+          urgencyScore += 35;
+        }
+
+        return { complaint, urgencyScore, summary };
       })
-      .sort((a, b) => {
-        // Sort by severity (critical first) then by date
-        const getSeverityWeight = (complaint) => {
-          try {
-            const summary = JSON.parse(complaint.overall_summary);
-            return summary.severity === 'critical' ? 2 : 1;
-          } catch (e) {
-            return 0;
-          }
-        };
-        return getSeverityWeight(b) - getSeverityWeight(a) ||
-               new Date(b.created_at) - new Date(a.created_at);
-      })
+      .filter(item => item.urgencyScore > 0)
+      .sort((a, b) => b.urgencyScore - a.urgencyScore)
       .slice(0, 10);
 
-    setUrgentComplaints(urgent);
+    setUrgentComplaints(scored.map(item => item.complaint));
   };
 
   const calculateOverdueComplaints = (items) => {
-    // Get complaints older than 7 days that are not resolved
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Dynamic SLA based on severity and status
+    const now = new Date();
+
+    // SLA thresholds in hours
+    const SLA_BY_SEVERITY = {
+      critical: 24,      // 24 hours
+      high: 72,          // 3 days
+      medium: 168,       // 7 days
+      low: 336,          // 14 days
+      default: 168       // 7 days for unknown severity
+    };
+
+    const SLA_BY_STATUS = {
+      pending: 48,           // 2 days to start processing
+      pending_action: 48,    // 2 days to take action
+      in_progress: 120,      // 5 days to resolve
+      default: 168           // 7 days default
+    };
 
     const overdue = items
       .filter(complaint => {
         if (['resolved', 'completed'].includes(complaint.status)) return false;
-        return new Date(complaint.created_at) < sevenDaysAgo;
+
+        const createdAt = new Date(complaint.created_at);
+        const ageInHours = (now - createdAt) / (1000 * 60 * 60);
+
+        // Determine SLA threshold
+        let slaThreshold = SLA_BY_STATUS.default;
+
+        // First priority: SLA by severity if we have AI summary
+        if (complaint.overall_summary) {
+          try {
+            const summary = JSON.parse(complaint.overall_summary);
+            slaThreshold = SLA_BY_SEVERITY[summary.severity] || SLA_BY_SEVERITY.default;
+          } catch (e) {
+            // If no summary, use status-based SLA
+            slaThreshold = SLA_BY_STATUS[complaint.status] || SLA_BY_STATUS.default;
+          }
+        } else {
+          // No summary yet, use status-based SLA
+          slaThreshold = SLA_BY_STATUS[complaint.status] || SLA_BY_STATUS.default;
+        }
+
+        return ageInHours > slaThreshold;
       })
-      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      .map(complaint => {
+        const createdAt = new Date(complaint.created_at);
+        const ageInHours = (now - createdAt) / (1000 * 60 * 60);
+        let slaThreshold = SLA_BY_STATUS.default;
+
+        if (complaint.overall_summary) {
+          try {
+            const summary = JSON.parse(complaint.overall_summary);
+            slaThreshold = SLA_BY_SEVERITY[summary.severity] || SLA_BY_SEVERITY.default;
+          } catch (e) {
+            slaThreshold = SLA_BY_STATUS[complaint.status] || SLA_BY_STATUS.default;
+          }
+        } else {
+          slaThreshold = SLA_BY_STATUS[complaint.status] || SLA_BY_STATUS.default;
+        }
+
+        const overdueHours = ageInHours - slaThreshold;
+        return { ...complaint, overdueHours };
+      })
+      .sort((a, b) => b.overdueHours - a.overdueHours) // Most overdue first
       .slice(0, 10);
 
     setOverdueComplaints(overdue);
   };
 
   const calculateRecurringIssues = (items) => {
-    // Get categories with 2+ complaints in the last 7 days
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Enhanced recurring issue detection with team-based grouping
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
+    // Get recent complaints (last 7 days)
     const recentComplaints = items.filter(
       complaint => new Date(complaint.created_at) > sevenDaysAgo
     );
 
-    const categoryCounts = {};
+    // Get previous week complaints for trend comparison
+    const previousWeekComplaints = items.filter(
+      complaint => {
+        const createdAt = new Date(complaint.created_at);
+        return createdAt > fourteenDaysAgo && createdAt <= sevenDaysAgo;
+      }
+    );
+
+    // Group by category + team combination for better pattern detection
+    const categoryTeamCounts = {};
+    const categoryTeamDetails = {};
+
     recentComplaints.forEach(complaint => {
       if (complaint.overall_summary) {
         try {
           const summary = JSON.parse(complaint.overall_summary);
           const category = summary.category || 'Unknown';
-          categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+          const team = summary.responsible_team || 'Unassigned';
+          const key = `${category}|${team}`;
+
+          if (!categoryTeamCounts[key]) {
+            categoryTeamCounts[key] = 0;
+            categoryTeamDetails[key] = { category, team, complaints: [] };
+          }
+          categoryTeamCounts[key]++;
+          categoryTeamDetails[key].complaints.push(complaint);
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+    });
+
+    // Count previous week for trend
+    const previousWeekCounts = {};
+    previousWeekComplaints.forEach(complaint => {
+      if (complaint.overall_summary) {
+        try {
+          const summary = JSON.parse(complaint.overall_summary);
+          const category = summary.category || 'Unknown';
+          const team = summary.responsible_team || 'Unassigned';
+          const key = `${category}|${team}`;
+          previousWeekCounts[key] = (previousWeekCounts[key] || 0) + 1;
         } catch (e) {
           // Ignore
         }
       }
     });
 
-    const recurring = Object.entries(categoryCounts)
-      .filter(([, count]) => count >= 2)
-      .sort(([, a], [, b]) => b - a)
-      .map(([category, count]) => ({ category, count }));
+    // Calculate recurring issues with trend
+    const recurring = Object.entries(categoryTeamCounts)
+      .filter(([, count]) => count >= 2) // 2+ complaints = recurring
+      .map(([key, count]) => {
+        const details = categoryTeamDetails[key];
+        const previousCount = previousWeekCounts[key] || 0;
+        const trend = count - previousCount; // Positive = increasing, negative = decreasing
+
+        // Calculate resolution rate for this category+team
+        const resolved = details.complaints.filter(
+          c => ['resolved', 'completed'].includes(c.status)
+        ).length;
+        const resolutionRate = details.complaints.length > 0
+          ? Math.round((resolved / details.complaints.length) * 100)
+          : 0;
+
+        return {
+          category: details.category,
+          team: details.team,
+          count,
+          trend,
+          resolutionRate,
+          severity: details.complaints.length >= 5 ? 'critical' :
+                    details.complaints.length >= 3 ? 'high' : 'medium'
+        };
+      })
+      .sort((a, b) => {
+        // Sort by: 1) count (descending), 2) trend (ascending - worse trends first)
+        if (b.count !== a.count) return b.count - a.count;
+        return b.trend - a.trend;
+      });
 
     setRecurringIssues(recurring);
   };
@@ -474,9 +614,25 @@ function Dashboard() {
           <div className="urgent-list">
             {overdueComplaints.length > 0 ? (
               overdueComplaints.map((complaint) => {
-                const daysOverdue = Math.floor(
-                  (new Date() - new Date(complaint.created_at)) / (1000 * 60 * 60 * 24)
-                );
+                // Format overdue time
+                const overdueHours = complaint.overdueHours || 0;
+                let overdueText = '';
+                if (overdueHours >= 24) {
+                  const days = Math.floor(overdueHours / 24);
+                  overdueText = `${days}d overdue`;
+                } else {
+                  overdueText = `${Math.floor(overdueHours)}h overdue`;
+                }
+
+                // Get severity badge if available
+                let summary = null;
+                try {
+                  if (complaint.overall_summary) {
+                    summary = JSON.parse(complaint.overall_summary);
+                  }
+                } catch (e) {
+                  // Ignore
+                }
 
                 return (
                   <div
@@ -486,10 +642,10 @@ function Dashboard() {
                   >
                     <div className="urgent-header">
                       <span className="urgent-title">{complaint.title}</span>
-                      <span className="overdue-badge">{daysOverdue} days</span>
+                      <span className="overdue-badge">{overdueText}</span>
                     </div>
                     <div className="urgent-category">
-                      Created {new Date(complaint.created_at).toLocaleDateString()}
+                      {summary ? `${summary.category} • ${summary.severity}` : complaint.status}
                     </div>
                   </div>
                 );
@@ -505,22 +661,36 @@ function Dashboard() {
           <h3>🔄 Recurring Issues This Week</h3>
           <div className="chart-container">
             {recurringIssues.length > 0 ? (
-              recurringIssues.map(({ category, count }) => (
-                <div key={category} className="chart-bar-row">
-                  <div className="chart-label">{category}</div>
-                  <div className="chart-bar-container">
-                    <div
-                      className="chart-bar"
-                      style={{
-                        width: `${(count / Math.max(...recurringIssues.map(i => i.count))) * 100}%`,
-                        background: '#ef4444',
-                      }}
-                    >
-                      <span className="chart-bar-value">{count} cases</span>
+              recurringIssues.map(({ category, team, count, trend, resolutionRate, severity }) => {
+                const maxCount = Math.max(...recurringIssues.map(i => i.count));
+                const barColor = severity === 'critical' ? '#ef4444' :
+                                 severity === 'high' ? '#f97316' : '#f59e0b';
+
+                return (
+                  <div key={`${category}-${team}`} className="chart-bar-row">
+                    <div className="chart-label">
+                      <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{category}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{team}</div>
+                    </div>
+                    <div className="chart-bar-container">
+                      <div
+                        className="chart-bar"
+                        style={{
+                          width: `${(count / maxCount) * 100}%`,
+                          background: barColor,
+                        }}
+                      >
+                        <span className="chart-bar-value">
+                          {count} cases
+                          {trend > 0 && ` ↑${trend}`}
+                          {trend < 0 && ` ↓${Math.abs(trend)}`}
+                          {resolutionRate < 50 && ` • ${resolutionRate}% resolved`}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="empty-chart">No recurring issues detected</div>
             )}
