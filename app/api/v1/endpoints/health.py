@@ -9,7 +9,7 @@ from app.core.config import settings
 router = APIRouter()
 
 
-@router.get("", summary="Health check")
+@router.get("/health", summary="Health check")
 async def health_check():
     """Basic health check endpoint."""
     return {
@@ -19,7 +19,7 @@ async def health_check():
     }
 
 
-@router.get("/ready", summary="Readiness check")
+@router.get("/health/ready", summary="Readiness check")
 async def readiness_check(db: AsyncSession = Depends(get_db)):
     """
     Readiness check that verifies database and Redis connectivity.
