@@ -1,0 +1,203 @@
+# Prometheus Alerting Rules for Complaint Platform
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: monitoring
+data:
+  complaint-platform-rules.yml: |
+    groups:
+    - name: complaint_platform_alerts
+      interval: 30s
+      rules:
+
+      # High Error Rate Alert
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m])) by (service)
+            /
+            sum(rate(http_requests_total[5m])) by (service)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "High error rate detected on {{ $labels.service }}"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+      # High API Latency Alert
+      - alert: HighAPILatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{job="api"}[5m])) by (le)
+          ) > 2
+        for: 10m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High API latency detected"
+          description: "95th percentile latency is {{ $value }}s (threshold: 2s)"
+
+      # Pod CrashLooping
+      - alert: PodCrashLooping
+        expr: |
+          rate(kube_pod_container_status_restarts_total{namespace="default"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pod {{ $labels.pod }} is crash looping"
+          description: "Pod has restarted {{ $value }} times in the last 15 minutes"
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            container_memory_working_set_bytes{pod=~"api-.*|worker-.*"}
+            /
+            container_spec_memory_limit_bytes{pod=~"api-.*|worker-.*"}
+          ) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.pod }}"
+          description: "Memory usage is {{ $value | humanizePercentage }} of limit"
+
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: |
+          (
+            rate(container_cpu_usage_seconds_total{pod=~"api-.*|worker-.*"}[5m])
+            /
+            container_spec_cpu_quota{pod=~"api-.*|worker-.*"}
+          ) > 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.pod }}"
+          description: "CPU usage is {{ $value | humanizePercentage }} of limit"
+
+      # Celery Queue Length Alert
+      - alert: CeleryQueueBacklog
+        expr: celery_queue_length > 1000
+        for: 15m
+        labels:
+          severity: warning
+          component: worker
+        annotations:
+          summary: "Large backlog in Celery queue"
+          description: "Queue {{ $labels.queue }} has {{ $value }} tasks pending"
+
+      # Database Connection Pool Exhaustion
+      - alert: DatabaseConnectionPoolExhaustion
+        expr: |
+          (
+            sqlalchemy_pool_connections
+            /
+            sqlalchemy_pool_limit
+          ) > 0.8
+        for: 5m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Using {{ $value | humanizePercentage }} of connection pool"
+
+      # RDS High CPU
+      - alert: RDSHighCPU
+        expr: aws_rds_cpuutilization_average > 80
+        for: 10m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "RDS instance {{ $labels.dbinstance_identifier }} has high CPU"
+          description: "CPU utilization is {{ $value }}% (threshold: 80%)"
+
+      # RDS Storage Space Low
+      - alert: RDSLowStorage
+        expr: |
+          (
+            aws_rds_free_storage_space_average
+            /
+            aws_rds_allocated_storage
+          ) < 0.2
+        for: 15m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "RDS instance {{ $labels.dbinstance_identifier }} is low on storage"
+          description: "Only {{ $value | humanizePercentage }} of storage remaining"
+
+      # Redis High Memory Usage
+      - alert: RedisHighMemory
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          component: redis
+        annotations:
+          summary: "Redis instance using high memory"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+
+      # Service Down
+      - alert: ServiceDown
+        expr: up{job=~"api|worker|frontend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 2 minutes"
+
+      # Certificate Expiring Soon
+      - alert: CertificateExpiringSoon
+        expr: |
+          (
+            certmanager_certificate_expiration_timestamp_seconds
+            - time()
+          ) / 86400 < 30
+        for: 1h
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "TLS certificate expiring soon"
+          description: "Certificate {{ $labels.name }} expires in {{ $value }} days"
+
+      # Failed Celery Tasks
+      - alert: HighCeleryTaskFailureRate
+        expr: |
+          (
+            rate(celery_task_failed_total[10m])
+            /
+            rate(celery_task_total[10m])
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: worker
+        annotations:
+          summary: "High Celery task failure rate"
+          description: "{{ $value | humanizePercentage }} of tasks are failing"
+
+      # Deployment Rollout Stuck
+      - alert: DeploymentRolloutStuck
+        expr: |
+          kube_deployment_status_replicas_updated{namespace="default"}
+          !=
+          kube_deployment_spec_replicas{namespace="default"}
+        for: 15m
+        labels:
+          severity: warning
+          component: kubernetes
+        annotations:
+          summary: "Deployment {{ $labels.deployment }} rollout is stuck"
+          description: "Rollout has been stuck for more than 15 minutes"

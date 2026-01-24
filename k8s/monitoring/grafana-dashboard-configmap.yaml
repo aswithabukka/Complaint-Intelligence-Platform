@@ -1,0 +1,170 @@
+# Grafana Dashboard ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-complaint-platform
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  complaint-platform-overview.json: |
+    {
+      "dashboard": {
+        "title": "Complaint Platform - Overview",
+        "tags": ["complaint-platform", "production"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "title": "Request Rate (req/s)",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+            "targets": [
+              {
+                "expr": "sum(rate(http_requests_total{job=\"api\"}[5m]))",
+                "legendFormat": "Total Requests"
+              },
+              {
+                "expr": "sum(rate(http_requests_total{job=\"api\",status=~\"2..\"}[5m]))",
+                "legendFormat": "2xx Success"
+              },
+              {
+                "expr": "sum(rate(http_requests_total{job=\"api\",status=~\"5..\"}[5m]))",
+                "legendFormat": "5xx Errors"
+              }
+            ]
+          },
+          {
+            "title": "Error Rate (%)",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+            "targets": [
+              {
+                "expr": "100 * sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m]))",
+                "legendFormat": "Error Rate"
+              }
+            ],
+            "alert": {
+              "conditions": [
+                {
+                  "evaluator": {"params": [5], "type": "gt"},
+                  "operator": {"type": "and"},
+                  "query": {"params": ["A", "5m", "now"]},
+                  "reducer": {"params": [], "type": "avg"},
+                  "type": "query"
+                }
+              ]
+            }
+          },
+          {
+            "title": "API Latency (p50, p95, p99)",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+                "legendFormat": "p50"
+              },
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+                "legendFormat": "p95"
+              },
+              {
+                "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+                "legendFormat": "p99"
+              }
+            ]
+          },
+          {
+            "title": "Active Pods",
+            "type": "stat",
+            "gridPos": {"h": 8, "w": 6, "x": 12, "y": 8},
+            "targets": [
+              {
+                "expr": "count(kube_pod_status_phase{phase=\"Running\", namespace=\"default\", pod=~\"api-.*\"})",
+                "legendFormat": "API Pods"
+              },
+              {
+                "expr": "count(kube_pod_status_phase{phase=\"Running\", namespace=\"default\", pod=~\"worker-.*\"})",
+                "legendFormat": "Worker Pods"
+              }
+            ]
+          },
+          {
+            "title": "CPU Usage by Pod",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+            "targets": [
+              {
+                "expr": "sum(rate(container_cpu_usage_seconds_total{pod=~\"api-.*|worker-.*\"}[5m])) by (pod)",
+                "legendFormat": "{{ pod }}"
+              }
+            ]
+          },
+          {
+            "title": "Memory Usage by Pod",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+            "targets": [
+              {
+                "expr": "sum(container_memory_working_set_bytes{pod=~\"api-.*|worker-.*\"}) by (pod) / 1024 / 1024",
+                "legendFormat": "{{ pod }}"
+              }
+            ]
+          },
+          {
+            "title": "Celery Queue Length",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+            "targets": [
+              {
+                "expr": "celery_queue_length",
+                "legendFormat": "{{ queue }}"
+              }
+            ]
+          },
+          {
+            "title": "Celery Task Success Rate",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+            "targets": [
+              {
+                "expr": "100 * rate(celery_task_succeeded_total[5m]) / rate(celery_task_total[5m])",
+                "legendFormat": "Success Rate"
+              }
+            ]
+          },
+          {
+            "title": "Database Connections",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+            "targets": [
+              {
+                "expr": "sqlalchemy_pool_connections",
+                "legendFormat": "Active Connections"
+              },
+              {
+                "expr": "sqlalchemy_pool_limit",
+                "legendFormat": "Connection Limit"
+              }
+            ]
+          },
+          {
+            "title": "Redis Memory Usage",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+            "targets": [
+              {
+                "expr": "redis_memory_used_bytes / 1024 / 1024",
+                "legendFormat": "Used Memory (MB)"
+              },
+              {
+                "expr": "redis_memory_max_bytes / 1024 / 1024",
+                "legendFormat": "Max Memory (MB)"
+              }
+            ]
+          }
+        ],
+        "refresh": "30s",
+        "time": {"from": "now-6h", "to": "now"}
+      }
+    }
