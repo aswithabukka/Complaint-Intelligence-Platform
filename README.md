@@ -2,6 +2,15 @@
 
 An AI-powered complaint management system that automatically processes, analyzes, and triages customer complaints using OCR and Large Language Models. Transform complaint handling from hours to minutes with intelligent automation.
 
+## 📁 Tech Stack
+
+**Backend**: FastAPI, SQLAlchemy, Celery, PostgreSQL, Redis, OpenAI API, Tesseract OCR
+**Frontend**: React 19, Vite 7, Nginx
+**Infrastructure**: Docker, Docker Compose, Alembic
+
+Full technical documentation: See [TECHNICAL.md](./TECHNICAL.md)
+
+
 ## 🎯 Business Value
 
 ### Key Metrics Improvement
@@ -199,31 +208,6 @@ Enhanced detection grouping by **Category + Team** combination:
 **Database errors**: Ensure migrations ran → `docker-compose exec api alembic upgrade head`
 
 **Need detailed logs**: `docker-compose logs -f api worker`
-
-## 📁 Tech Stack
-
-### Development
-**Backend**: FastAPI, SQLAlchemy, Celery, PostgreSQL, Redis, OpenAI API, Tesseract OCR
-**Frontend**: React 19, Vite 7, Nginx
-**Infrastructure**: Docker, Docker Compose, Alembic
-
-### Production (Enterprise-Grade)
-**Cloud Infrastructure**: AWS (EKS, RDS Multi-AZ, ElastiCache, S3, CloudWatch)
-**Container Orchestration**: Kubernetes, Helm, Docker
-**Infrastructure as Code**: Terraform
-**CI/CD**: GitHub Actions, ArgoCD
-**API Gateway**: NGINX Ingress Controller with rate limiting, WAF
-**Monitoring**: Prometheus, Grafana, ELK Stack (Elasticsearch, Logstash, Kibana)
-**Error Tracking**: Sentry
-**Security**: JWT authentication, AWS KMS encryption, AWS Secrets Manager
-**Auto-Scaling**: Horizontal Pod Autoscaler, Cluster Autoscaler
-**Load Balancing**: AWS Application Load Balancer
-**Caching**: Redis Cluster (Multi-AZ)
-**Database**: RDS PostgreSQL (Multi-AZ with Read Replicas)
-**Storage**: AWS S3 with lifecycle policies (Standard → IA → Glacier)
-**Backup**: Automated backups (RDS 30-day, S3 versioning, Velero)
-
-Full technical documentation: See [TECHNICAL.md](./TECHNICAL.md)
 
 ## 🏗️ Production Deployment
 
